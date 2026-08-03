@@ -1,0 +1,41 @@
+services:
+  searxng:
+    image: searxng/searxng:latest
+    container_name: hermes-searxng
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8088:8080"
+    volumes:
+      - ./searxng-config:/etc/searxng:rw
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:8080/
+      - SEARXNG_SECRET_KEY=${SEARXNG_SECRET_KEY:-}
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+    networks:
+      - hermes-network
+
+  redis:
+    image: docker.io/valkey/valkey:8-alpine
+    container_name: hermes-searxng-redis
+    restart: unless-stopped
+    command: valkey-server --save 30 1 --loglevel warning
+    volumes:
+      - ./searxng-redis:/data
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+      - DAC_OVERRIDE
+    networks:
+      - hermes-network
+
+networks:
+  hermes-network:
+    driver: bridge
