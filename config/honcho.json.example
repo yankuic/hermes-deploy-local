@@ -1,0 +1,21 @@
+{
+  "hosts": {
+    "hermes": {
+      "peerName": "<USER_NAME>",
+      "aiPeer": "hermes",
+      "workspace": "hermes",
+      "pinUserPeer": false,
+      "observationMode": "unified",
+      "reasoningLevelCap": "low",
+      "writeFrequency": "async",
+      "recallMode": "hybrid",
+      "dialecticCadence": 2,
+      "dialecticReasoningLevel": "low",
+      "sessionStrategy": "per-session",
+      "timeout": 180,
+      "enabled": true,
+      "saveMessages": true
+    }
+  },
+  "baseUrl": "http://127.0.0.1:8100"
+}

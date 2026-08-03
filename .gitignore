@@ -1,0 +1,15 @@
+# Secrets
+.env
+
+# Local runtime / hermes home symlink
+.hermes
+
+# Personal operational docs (kept locally, not published)
+AGENTS.md
+memory-bank/
+plans/
+
+# Backups and misc
+*.bak
+*.log
+.DS_Store
