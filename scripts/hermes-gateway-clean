@@ -1,0 +1,242 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: hermes-gateway-clean [-p|--profile <default|researcher|all>] [-s|--simplex] [-f|--force] [-y|--yes] [-l|--list]
+
+Clean stale hermes sandbox containers and refresh gateway services.
+Gateway services are discovered dynamically from installed systemd units, so
+profiles added/removed over time are picked up automatically:
+  hermes-gateway.service           -> profile "default"
+  hermes-gateway-<name>.service    -> profile "<name>"
+
+Before running, the script prints exactly what it will do and asks for
+confirmation. Pass -y to skip the prompt (e.g. in cron/CI).
+
+Options:
+  -p, --profile <name|all>  Target a specific profile gateway (default: all).
+  -s, --simplex             Also restart the matching simplex-daemon service.
+  -f, --force               Remove containers even if the gateway reports active agents.
+  -y, --yes                 Skip the confirmation prompt.
+  -l, --list                List discovered gateways/profiles and exit.
+  -h, --help                Show this help.
+EOF
+}
+
+PROFILE="all"
+RESTART_SIMPLEX=0
+FORCE=0
+ASSUME_YES=0
+LIST_ONLY=0
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -p|--profile) PROFILE="$2"; shift 2 ;;
+    -s|--simplex) RESTART_SIMPLEX=1; shift ;;
+    -f|--force) FORCE=1; shift ;;
+    -y|--yes) ASSUME_YES=1; shift ;;
+    -l|--list) LIST_ONLY=1; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "error: unknown option: $1" >&2; usage >&2; exit 1 ;;
+  esac
+done
+
+HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
+SYSTEMD_USER="systemctl --user"
+
+discover_gateways() {
+  local units
+  units="$($SYSTEMD_USER list-unit-files --type=service --no-legend | awk '{print $1}' | grep '^hermes-gateway' || true)"
+  for u in $units; do
+    case "$u" in
+      hermes-gateway.service) echo "default" ;;
+      hermes-gateway-*.service) echo "${u#hermes-gateway-}" | sed 's/\.service$//' ;;
+    esac
+  done
+}
+
+profile_home() {
+  if [[ "$1" == "default" ]]; then
+    echo "$HERMES_HOME"
+  else
+    echo "$HERMES_HOME/profiles/$1"
+  fi
+}
+
+gateway_service() {
+  if [[ "$1" == "default" ]]; then
+    echo "hermes-gateway.service"
+  else
+    echo "hermes-gateway-$1.service"
+  fi
+}
+
+active_agents() {
+  local ph state
+  ph="$(profile_home "$1")"
+  state="$ph/gateway_state.json"
+  if [[ -r "$state" ]]; then
+    python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("active_agents", 0))' "$state" 2>/dev/null || echo 0
+  else
+    echo 0
+  fi
+}
+
+container_filter() {
+  local profile="$1"
+  if [[ "$profile" == "all" ]]; then
+    echo "--filter label=hermes-agent=1"
+  else
+    echo "--filter label=hermes-agent=1 --filter label=hermes-profile=$profile"
+  fi
+}
+
+list_containers() {
+  local profile="$1"
+  # shellcheck disable=SC2046
+  docker ps -a $(container_filter "$profile") --format '{{.Names}}\t{{.Label "hermes-profile"}}\t{{.Label "hermes-task-id"}}'
+}
+
+clean_containers() {
+  local profile="$1"
+  local ids
+  # shellcheck disable=SC2046
+  ids="$(docker ps -aq $(container_filter "$profile") | tr '\n' ' ')"
+  if [[ -z "${ids// /}" ]]; then
+    echo "  (no containers to remove)"
+    return
+  fi
+  # shellcheck disable=SC2086
+  docker rm -f $ids
+}
+
+refresh_gateway() {
+  local profile="$1"
+  local svc ssvc
+  svc="$(gateway_service "$profile")"
+  if ! $SYSTEMD_USER list-unit-files --type=service --no-legend | grep -q "^$svc "; then
+    echo "WARN: $svc not installed, skipping" >&2
+    return 1
+  fi
+  $SYSTEMD_USER restart "$svc"
+  echo "restarted $svc"
+  if [[ "$RESTART_SIMPLEX" -eq 1 ]]; then
+    if [[ "$profile" == "default" ]]; then
+      ssvc="simplex-daemon.service"
+    else
+      ssvc="simplex-daemon-$profile.service"
+    fi
+    if $SYSTEMD_USER list-unit-files --type=service --no-legend | grep -q "^$ssvc "; then
+      $SYSTEMD_USER restart "$ssvc"
+      echo "restarted $ssvc"
+    else
+      echo "WARN: $ssvc not installed, skipping" >&2
+    fi
+  fi
+}
+
+gateways="$(discover_gateways)"
+if [[ -z "$gateways" ]]; then
+  echo "error: no hermes-gateway services found" >&2
+  exit 1
+fi
+
+if [[ "$LIST_ONLY" -eq 1 ]]; then
+  echo "Discovered gateways (profile -> service):"
+  for g in $gateways; do
+    echo "  $g -> $(gateway_service "$g")"
+  done
+  exit 0
+fi
+
+if [[ "$PROFILE" != "all" ]]; then
+  if ! echo "$gateways" | grep -qx "$PROFILE"; then
+    echo "error: profile '$PROFILE' not found. Available: $(echo "$gateways" | tr '\n' ' ')" >&2
+    exit 1
+  fi
+  gateways="$PROFILE"
+fi
+
+preview_plan() {
+  local g agents removed
+  echo ""
+  echo "PLAN — hermes-gateway-clean will:"
+  echo ""
+  echo "1. Restart gateway service(s):"
+  for g in $gateways; do
+    echo "   - $(gateway_service "$g") (profile: $g)"
+  done
+  if [[ "$RESTART_SIMPLEX" -eq 1 ]]; then
+    echo "   (also restarting matching simplex-daemon service(s) due to -s)"
+  else
+    echo "   (simplex-daemon service(s) NOT restarted; add -s to include them)"
+  fi
+  echo ""
+  echo "2. Remove idle hermes sandbox container(s) with 'docker rm -f':"
+  for g in $gateways; do
+    if [[ "$FORCE" -eq 0 ]]; then
+      agents="$(active_agents "$g")"
+    else
+      agents=0
+    fi
+    if [[ "$agents" -gt 0 ]]; then
+      echo "   profile $g: SKIPPING container cleanup ($agents active agent(s); use -f to force)"
+      continue
+    fi
+    removed="$(list_containers "$g")"
+    if [[ -z "$removed" ]]; then
+      echo "   profile $g: (no containers to remove)"
+    else
+      while IFS= read -r line; do
+        echo "   - $line"
+      done <<< "$removed"
+    fi
+  done
+  echo ""
+  echo "NOTE: persistent workspace/home data lives in host bind mounts"
+  echo "(sandboxes/docker/...), so container removal does not lose state."
+  echo "Containers are recreated on next use. SearXNG/valkey stack untouched."
+  echo ""
+}
+
+if [[ "$ASSUME_YES" -eq 0 ]]; then
+  if [[ ! -t 0 ]]; then
+    echo "error: no interactive TTY and -y not passed; add -y to skip confirmation" >&2
+    exit 1
+  fi
+  preview_plan
+  read -r -p "Proceed? [y/N] " ans
+  if [[ "${ans:-n}" != "y" && "${ans:-n}" != "Y" ]]; then
+    echo "aborted."
+    exit 1
+  fi
+else
+  preview_plan
+  echo "(-y passed, proceeding without confirmation)"
+fi
+
+echo "Cleaning stale containers and refreshing gateways..."
+for g in $gateways; do
+  echo "== profile: $g =="
+  if [[ "$FORCE" -eq 0 ]]; then
+    agents="$(active_agents "$g")"
+    if [[ "$agents" -gt 0 ]]; then
+      echo "WARN: $g gateway has $agents active agent(s); skipping container cleanup (use -f to force)"
+    else
+      clean_containers "$g"
+    fi
+  else
+    clean_containers "$g"
+  fi
+  refresh_gateway "$g" || true
+done
+
+echo "== summary =="
+echo "gateway services:"
+for g in $gateways; do
+  svc="$(gateway_service "$g")"
+  echo "  $svc: $($SYSTEMD_USER is-active "$svc")"
+done
+echo "remaining hermes containers:"
+docker ps -a --filter "label=hermes-agent=1" --format '  {{.Names}}\t{{.Status}}' || echo "  (none)"
