@@ -1,0 +1,26 @@
+# SimpleX Chat daemon (researcher profile) — systemd user unit backing the
+# researcher Hermes gateway bot.
+# Copy to ~/.config/systemd/user/simplex-daemon-researcher.service and enable:
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now simplex-daemon-researcher.service
+# Requires the simplex-chat CLI at ~/bin/simplex-chat (see docs/simplex.md).
+# %h expands to the user's home dir. Port 5226 (default profile uses 5225).
+# Inbound files land in the profile-local cache (the shared ~/.hermes/cache is
+# denied to the researcher under agent.profile_scope: strict).
+
+[Unit]
+Description=SimpleX Chat Daemon (Hermes Gateway Bot - researcher profile)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=%h/bin/simplex-chat -p 5226 -d %h/.hermes/profiles/researcher/simplex_db --create-bot-display-name "Hermes Researcher" -y --files-folder %h/.hermes/profiles/researcher/cache/documents --temp-folder %h/.hermes/profiles/researcher/cache/documents/.simplex-tmp-researcher --auto-accept-files 50000000
+Restart=always
+RestartSec=5
+KillMode=mixed
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target
