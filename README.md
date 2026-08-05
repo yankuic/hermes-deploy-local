@@ -39,9 +39,9 @@ Runtime files that contain secrets or machine-specific paths, including `~/.herm
 
 The optional researcher profile uses `deepseek-v4-flash` through `api.deepseek.com`. This model is a personal choice, not a deployment requirement; any frontier model supported by Hermes can be substituted without changing the profile-isolation design. Prompts and any context deliberately included in those prompts are sent to the selected provider. The profile has its own Hermes profile tree, gateway, SimpleX daemon, output directory, and Honcho workspace (`hermes_researcher`).
 
-The `apply_profile_isolation.py` patch lets a named profile use a cloud model without granting its file tools access to the default profile's Hermes state or to sibling profiles. It hard-denies reads and writes to those paths in `agent/file_safety.py`; this restriction is enforced in code rather than through prompting.
+The `apply-profile-isolation.py` patch lets a named profile use a cloud model without granting its file tools access to the default profile's Hermes state or to sibling profiles. It hard-denies reads and writes to those paths in `agent/file_safety.py`; this restriction is enforced in code rather than through prompting.
 
-The isolation scope is intentionally narrow. The patch still allows the active profile's own tree, the shared Hermes cache, and paths outside the Hermes root, such as an Obsidian vault. It protects Hermes profile state; it is not general host-filesystem isolation. See [`docs/profile-isolation.md`](docs/profile-isolation.md).
+The isolation scope is intentionally narrow. When a profile sets `agent.profile_scope: strict`, its file tools are confined to its own tree — default-profile state, sibling profiles, and the shared Hermes cache are all denied unless re-shared via `agent.profile_scope_allow`. Paths outside the Hermes root, such as an Obsidian vault, are not covered. It protects Hermes profile state; it is not general host-filesystem isolation. See [`docs/profile-isolation.md`](docs/profile-isolation.md).
 
 ## Local patches
 
@@ -49,7 +49,7 @@ The isolation scope is intentionally narrow. The patch still allows the active p
 
 | Patch | Purpose |
 |-------|---------|
-| `apply_profile_isolation.py` | Denies a named profile access to default and sibling Hermes profile state — upstream discussion includes [ #10376 / #65693 / #30585](https://github.com/NousResearch/hermes-agent/issues/10376#issuecomment-5162651159). |
+| `apply-profile-isolation.py` | Opt-in `agent.profile_scope: strict` host file-tool isolation for named profiles — denies default/sibling profile state and the shared cache (re-shareable via `profile_scope_allow`); upstream discussion includes [ #10376 / #65693 / #30585](https://github.com/NousResearch/hermes-agent/issues/10376#issuecomment-5162651159). |
 | `image_source_output_mounts.py` | Resolves the Docker `/output` mount to its host path so vision can read inbound SimpleX images without an active sandbox session. |
 | `simplex_dm_send.py` | Uses SimpleX's structured `/_send` form for outbound direct messages. |
 | `simplex_inline_image.py` | Passes inline base64 images from SimpleX mobile clients into the vision pipeline — [#76362](https://github.com/NousResearch/hermes-agent/issues/76362). |

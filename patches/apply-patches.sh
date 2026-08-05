@@ -25,6 +25,6 @@ run() {
 run image_source_output_mounts.py "$@"
 run simplex_dm_send.py "$@"
 run simplex_inline_image.py "$@"
-run apply_profile_isolation.py "$@"
+run apply-profile-isolation.py "$@"
 
 exit $STATUS
