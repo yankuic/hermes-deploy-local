@@ -12,7 +12,7 @@ search:
     - html
     - json
 server:
-  secret_key: "${SEARXNG_SECRET_KEY:-hermes-4f7a2b9c1d3e5f6a8b0c2d4e6f1a3b5c7d9e0f2a4b6c8d1e3f5a7b9c0d2e4f6}"
+  secret_key: "${SEARXNG_SECRET_KEY:-<change-me>}"
   bind_address: "0.0.0.0"
   limiter: false
   image_proxy: false
