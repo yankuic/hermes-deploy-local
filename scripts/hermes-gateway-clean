@@ -3,13 +3,17 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: hermes-gateway-clean [-p|--profile <default|researcher|all>] [-s|--simplex] [-f|--force] [-y|--yes] [-l|--list]
+Usage: hermes-gateway-clean [-p|--profile <name|all>] [-s|--simplex] [-f|--force] [-y|--yes] [-l|--list]
 
 Clean stale hermes sandbox containers and refresh gateway services.
-Gateway services are discovered dynamically from installed systemd units, so
-profiles added/removed over time are picked up automatically:
+Profiles are discovered dynamically from the Hermes install (default +
+~/.hermes/profiles/*/ with a config.yaml), matching `hermes profile list`,
+so Desktop-created profiles are picked up automatically. Profiles with an
+installed systemd unit are restarted via systemd:
   hermes-gateway.service           -> profile "default"
   hermes-gateway-<name>.service    -> profile "<name>"
+Profiles without a unit (gateway managed by Hermes Desktop) still get
+sandbox-container cleanup; gateway restart is skipped with a warning.
 
 Before running, the script prints exactly what it will do and asks for
 confirmation. Pass -y to skip the prompt (e.g. in cron/CI).
@@ -45,15 +49,20 @@ done
 HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
 SYSTEMD_USER="systemctl --user"
 
-discover_gateways() {
-  local units
-  units="$($SYSTEMD_USER list-unit-files --type=service --no-legend | awk '{print $1}' | grep '^hermes-gateway' || true)"
-  for u in $units; do
-    case "$u" in
-      hermes-gateway.service) echo "default" ;;
-      hermes-gateway-*.service) echo "${u#hermes-gateway-}" | sed 's/\.service$//' ;;
-    esac
+discover_profiles() {
+  local d p
+  echo "default"
+  for d in "$HERMES_HOME"/profiles/*/; do
+    [[ -d "$d" ]] || continue
+    p="$(basename "$d")"
+    [[ -f "$d/config.yaml" ]] && echo "$p"
   done
+}
+
+has_gateway_unit() {
+  local svc
+  svc="$(gateway_service "$1")"
+  $SYSTEMD_USER list-unit-files --type=service --no-legend | grep -q "^$svc "
 }
 
 profile_home() {
@@ -136,16 +145,21 @@ refresh_gateway() {
   fi
 }
 
-gateways="$(discover_gateways)"
+gateways="$(discover_profiles)"
 if [[ -z "$gateways" ]]; then
-  echo "error: no hermes-gateway services found" >&2
+  echo "error: no hermes profiles found" >&2
   exit 1
 fi
 
 if [[ "$LIST_ONLY" -eq 1 ]]; then
-  echo "Discovered gateways (profile -> service):"
+  echo "Discovered profiles (profile -> service):"
   for g in $gateways; do
-    echo "  $g -> $(gateway_service "$g")"
+    svc="$(gateway_service "$g")"
+    if has_gateway_unit "$g"; then
+      echo "  $g -> $svc (systemd-managed)"
+    else
+      echo "  $g -> $svc (no systemd unit - Desktop-managed; restart skipped)"
+    fi
   done
   exit 0
 fi
@@ -165,7 +179,12 @@ preview_plan() {
   echo ""
   echo "1. Restart gateway service(s):"
   for g in $gateways; do
-    echo "   - $(gateway_service "$g") (profile: $g)"
+    svc="$(gateway_service "$g")"
+    if has_gateway_unit "$g"; then
+      echo "   - $svc (profile: $g)"
+    else
+      echo "   - $svc (profile: $g) [no systemd unit - Desktop-managed; restart skipped]"
+    fi
   done
   if [[ "$RESTART_SIMPLEX" -eq 1 ]]; then
     echo "   (also restarting matching simplex-daemon service(s) due to -s)"
@@ -236,7 +255,11 @@ echo "== summary =="
 echo "gateway services:"
 for g in $gateways; do
   svc="$(gateway_service "$g")"
-  echo "  $svc: $($SYSTEMD_USER is-active "$svc")"
+  if has_gateway_unit "$g"; then
+    echo "  $svc: $($SYSTEMD_USER is-active "$svc")"
+  else
+    echo "  $svc: n/a (no systemd unit; Desktop-managed)"
+  fi
 done
 echo "remaining hermes containers:"
 docker ps -a --filter "label=hermes-agent=1" --format '  {{.Names}}\t{{.Status}}' || echo "  (none)"
