@@ -1,0 +1,27 @@
+# Graphify rebuild MCP server (host install) — systemd user unit.
+# Exposes the sync `rebuild_graph` MCP tool on port 8183; the :8182 query
+# server hot-reloads graph.json on mtime change, so no restart is needed
+# after a rebuild.
+# Copy to ~/.config/systemd/user/graphify-rebuild-mcp.service and enable:
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now graphify-rebuild-mcp.service
+# %h expands to the user's home dir. Requires graphifyy installed as a uv
+# tool with the [mcp,openai] extras (see memory-bank/graphify-mcp.md) and the
+# script at <repo>/scripts/graphify-rebuild-mcp.py.
+
+[Unit]
+Description=Graphify rebuild MCP server (HTTP on port 8183)
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/.hermes/graphify/hermes-vault
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=GRAPHIFY_MAX_OUTPUT_TOKENS=65536
+ExecStart=%h/.local/share/uv/tools/graphifyy/bin/python %h/Hermes/scripts/graphify-rebuild-mcp.py --host 127.0.0.1 --port 8183 --path /mcp
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target
