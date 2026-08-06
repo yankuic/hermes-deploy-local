@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# Launch the SimpleX chat daemon for a profile, backing the Hermes gateway bot.
+# Used by the generic systemd template systemd/simplex-daemon@.service, which
+# passes the profile as the instance name (%i). "default" means the root
+# install (~/.hermes); any other value is a named profile under
+# ~/.hermes/profiles/<name>.
+#
+# Ports and bot display names are not derivable from the profile name — they
+# are assigned below. For a NEW profile, add a case (or set SIMPLEX_PORT and
+# SIMPLEX_DISPLAY_NAME env overrides). Requires the simplex-chat CLI at
+# ~/bin/simplex-chat (see docs/simplex.md).
+#
+# Usage: simplex-daemon-run [<profile>]     (default: default)
+set -euo pipefail
+
+profile="${1:-default}"
+root="${HERMES_ROOT:-$HOME/.hermes}"
+simplex="$HOME/bin/simplex-chat"
+
+# Paths derive from the profile name; db_dir is empty for default (simplex uses
+# its default db location), set for named profiles.
+if [[ "$profile" == "default" ]]; then
+  db_dir=""
+  files_dir="$root/cache/documents"
+  temp_dir="$files_dir/.simplex-tmp"
+else
+  profile_home="$root/profiles/$profile"
+  db_dir="$profile_home/simplex_db"
+  files_dir="$profile_home/cache/documents"
+  temp_dir="$files_dir/.simplex-tmp-$profile"
+fi
+
+# Port + display name table (extend for new profiles; env overrides win).
+case "$profile" in
+  default)    port=5225; display="" ;;
+  researcher) port=5226; display="Hermes Researcher" ;;
+  jseeker)    port=5227; display="Hermes Jseeker" ;;
+  *)          port="${SIMPLEX_PORT:-0}"; display="${SIMPLEX_DISPLAY_NAME:-}" ;;
+esac
+port="${SIMPLEX_PORT:-$port}"
+display="${SIMPLEX_DISPLAY_NAME:-$display}"
+
+if [[ "$port" == "0" ]]; then
+  echo "error: no SimpleX port assigned for profile '$profile' (set SIMPLEX_PORT)" >&2
+  exit 1
+fi
+
+args=(-p "$port" --files-folder "$files_dir" --temp-folder "$temp_dir")
+if [[ -n "$db_dir" ]]; then
+  args+=(-d "$db_dir")
+fi
+if [[ -n "$display" ]]; then
+  args+=(--create-bot-display-name "$display" -y)
+fi
+
+exec "$simplex" "${args[@]}" --auto-accept-files 50000000

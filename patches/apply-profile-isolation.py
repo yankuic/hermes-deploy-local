@@ -357,7 +357,7 @@ def main() -> int:
                     encoding="utf-8")
     print("metadata written:", meta)
     print("NOTE: restart affected gateways/serve processes "
-          "(systemctl --user restart hermes-gateway-researcher.service).")
+          "(systemctl --user restart hermes-gateway@researcher.service).")
     return 0
 
 

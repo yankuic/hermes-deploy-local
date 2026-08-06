@@ -1,0 +1,24 @@
+# Generic SimpleX Chat daemon template (systemd user unit), backing the Hermes
+# gateway bot for one profile. Enable one instance per profile:
+#   systemctl --user enable --now 'simplex-daemon@<profile>.service'
+# <profile> = "default" (root install) or a named profile. The launcher
+# scripts/simplex-daemon-run maps the profile -> port / db / display name /
+# cache folders (extend it for new profiles). Requires the simplex-chat CLI at
+# ~/bin/simplex-chat (see docs/simplex.md). %h expands to the user's home dir.
+
+[Unit]
+Description=SimpleX Chat Daemon (Hermes Gateway Bot - %i)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=%h/Hermes/scripts/simplex-daemon-run %i
+Restart=always
+RestartSec=5
+KillMode=mixed
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

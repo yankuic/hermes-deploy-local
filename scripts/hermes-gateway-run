@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Launch the Hermes Agent gateway for a profile.
+# Used by the generic systemd template systemd/hermes-gateway@.service, which
+# passes the profile as the instance name (%i). "default" means the root
+# install (~/.hermes); any other value is a named profile under
+# ~/.hermes/profiles/<name>. Sets HERMES_HOME + (for named profiles) --profile
+# before exec'ing the shared root venv python. Runs under systemd user units,
+# so $HOME is the invoking user's home.
+#
+# Usage: hermes-gateway-run [<profile>]     (default: default)
+set -euo pipefail
+
+profile="${1:-default}"
+root="${HERMES_ROOT:-$HOME/.hermes}"
+python="$root/hermes-agent/venv/bin/python"
+
+if [[ "$profile" == "default" ]]; then
+  home="$root"
+  profile_args=()
+else
+  home="$root/profiles/$profile"
+  profile_args=(--profile "$profile")
+fi
+
+if [[ ! -d "$home" ]]; then
+  echo "error: profile home not found: $home" >&2
+  exit 1
+fi
+
+export HERMES_HOME="$home"
+cd "$home" || exit 1
+exec "$python" -m hermes_cli.main "${profile_args[@]}" gateway run
