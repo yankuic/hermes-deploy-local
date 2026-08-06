@@ -131,7 +131,7 @@ Template: `config/honcho.json.example`. Notable fields:
 - **`"timeout": 180`** — the 30 s default HTTP timeout is too short for local
   dialectic calls (see Troubleshooting)
 
-Apply with a gateway restart: `systemctl --user restart hermes-gateway.service`.
+Apply with a gateway restart: `systemctl --user restart hermes-gateway@default.service` (or the matching `@<profile>` instance).
 
 ## Per-profile isolation
 

@@ -64,18 +64,24 @@ Note: each variable must be on its own line.
 
 ## Step 4 — Systemd user units
 
+The gateway and SimpleX daemon use generic `@` templates — one unit file per
+service type, instantiated per profile (see `docs/profiles.md`). For the
+default (root) install, use the `@default` instances:
+
 ```bash
 mkdir -p ~/.config/systemd/user
-cp systemd/hermes-gateway.service ~/.config/systemd/user/
-cp systemd/simplex-daemon.service ~/.config/systemd/user/   # only if using SimpleX
+cp systemd/hermes-gateway@.service systemd/simplex-daemon@.service ~/.config/systemd/user/
 systemctl --user daemon-reload
-systemctl --user enable --now simplex-daemon.service
-systemctl --user enable --now hermes-gateway.service
-systemctl --user is-active simplex-daemon hermes-gateway
+systemctl --user enable --now simplex-daemon@default.service   # only if using SimpleX
+systemctl --user enable --now hermes-gateway@default.service
+systemctl --user is-active simplex-daemon@default hermes-gateway@default
 ```
 
-The units use `%h` (home dir), so they work for any user. If you don't use
-nvm, adjust the node path in `Environment="PATH=..."`.
+The units use `%h` (home dir) and exec the launcher scripts
+`scripts/hermes-gateway-run` / `scripts/simplex-daemon-run` from this repo
+(clone it to `~/Hermes`, or adjust the `ExecStart=` path), so they work for
+any user. If you don't use nvm, adjust the node path in
+`Environment="PATH=..."`.
 
 ## Step 5 — SimpleX prerequisites
 
@@ -150,8 +156,8 @@ Validate: `desktop-file-validate ~/.local/share/applications/hermes.desktop`.
 
 ## Step 9 — Verification checklist
 
-- [ ] `systemctl --user is-active hermes-gateway.service` → active
-- [ ] `systemctl --user is-active simplex-daemon.service` → active
+- [ ] `systemctl --user is-active hermes-gateway@default.service` → active
+- [ ] `systemctl --user is-active simplex-daemon@default.service` → active
 - [ ] `~/.hermes/logs/gateway.log`: "✓ simplex connected", "Gateway running with N platform(s)"
 - [ ] Main model answers via the primary endpoint (no 401, no "No model loaded")
 - [ ] Vision: `vision_analyze` on `/output/test.jpg` returns `"success": true`

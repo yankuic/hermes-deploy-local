@@ -26,11 +26,11 @@ mkdir -p ~/.hermes/cache/documents/.simplex-tmp
 
 Run interactively once to create a profile and connect contacts: `/create bot [files=on] <name> <bio>`, `/a` (simpleX address), `/ac <id>` (accept request), `/q` (quit). The chat DB persists at `~/.local/share/simplex-chat/simplex_v1_chat.db`.
 
-Systemd unit: `systemd/simplex-daemon.service` (in this repo) — starts the daemon on port 5225 with file auto-accept up to 50 MB:
+Systemd unit: `systemd/simplex-daemon@.service` (in this repo) — generic template backed by `scripts/simplex-daemon-run`, which maps the profile to port / db / display name / cache folders. For the default (root) install on port 5225 with file auto-accept up to 50 MB:
 
 ```bash
 systemctl --user daemon-reload
-systemctl --user enable --now simplex-daemon.service
+systemctl --user enable --now simplex-daemon@default.service
 ```
 
 ## Hermes configuration
@@ -140,14 +140,20 @@ connection may be down (`ss -tpn | grep simplex-chat`).
 
 A named Hermes profile (`HERMES_HOME=~/.hermes/profiles/<name>`) gets its own
 simplex daemon on a second port with its own identity DB, plus its own gateway
-unit running `--profile <name> gateway run`.
+instance of the generic `@` templates. Full walkthrough: `docs/profiles.md`.
 
-1. **Daemon unit** — copy of `simplex-daemon.service` on port 5226 with a
-   profile-local DB and non-interactive first start:
+1. **Enable the generic units for the profile** — `scripts/simplex-daemon-run`
+   already maps `researcher` (5226) and `jseeker` (5227) to ports, identity DBs,
+   display names and cache folders. For a new profile add a case there (or set
+   `SIMPLEX_PORT` / `SIMPLEX_DISPLAY_NAME`), then:
 
-   ```ini
-   ExecStart=%h/bin/simplex-chat -p 5226 -d %h/.hermes/profiles/<name>/simplex_db --create-bot-display-name "<Bot Name>" -y --files-folder %h/.hermes/cache/documents --temp-folder %h/.hermes/cache/documents/.simplex-tmp-<name> --auto-accept-files 50000000
+   ```bash
+   systemctl --user enable --now 'simplex-daemon@researcher.service'
+   systemctl --user enable --now 'hermes-gateway@researcher.service'
    ```
+
+   `simplex-daemon-run` launches
+   `simplex-chat -p 5226 -d ~/.hermes/profiles/<name>/simplex_db --create-bot-display-name "<Bot Name>" -y --files-folder ~/.hermes/cache/documents --temp-folder ~/.hermes/cache/documents/.simplex-tmp-<name> --auto-accept-files 50000000`.
 
    Flags that matter: `-d` (separate identity DB — a fresh DB prompts for a
    display name on stdin and dies under systemd, hence

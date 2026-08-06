@@ -31,7 +31,7 @@ QMD downloads its model files from Hugging Face; subsequent inference runs on th
 
 ## Architecture
 
-Hermes and the SimpleX daemon run as systemd user services (`hermes-gateway.service` and `simplex-daemon.service`). The repository's `docker-compose.yml` does not run Hermes: it runs only SearXNG and its Valkey cache. Honcho is a separate Docker deployment described in [`docs/honcho.md`](docs/honcho.md).
+Hermes and the SimpleX daemon run as systemd user services via generic `@` templates (`hermes-gateway@<profile>.service` and `simplex-daemon@<profile>.service`, one instance per profile — see [`docs/profiles.md`](docs/profiles.md)). The repository's `docker-compose.yml` does not run Hermes: it runs only SearXNG and its Valkey cache. Honcho is a separate Docker deployment described in [`docs/honcho.md`](docs/honcho.md).
 
 Runtime files that contain secrets or machine-specific paths, including `~/.hermes/config.yaml` and `~/.hermes/.env`, are not committed. The templates in this repository use documented `<PLACEHOLDER>` values instead.
 
@@ -92,7 +92,7 @@ The isolation scope is intentionally narrow. When a profile sets `agent.profile_
 4. Start local search with `docker compose up -d`.
 5. Copy the required units from `systemd/` to `~/.config/systemd/user/`.
 6. Apply the local patches with `patches/apply-patches.sh`.
-7. Run `systemctl --user daemon-reload` and enable `hermes-gateway.service`. Enable `simplex-daemon.service` only if using SimpleX.
+7. Run `systemctl --user daemon-reload` and enable `hermes-gateway@default.service`. Enable `simplex-daemon@default.service` only if using SimpleX.
 
 See [`docs/install.md`](docs/install.md) for model setup, runtime files, verification, and troubleshooting.
 
