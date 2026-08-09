@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# ── graphify-mcp-run ──────────────────────────────────────────────────────────
+# Wrapper for systemd template graphify-mcp@.service.
+# Resolves graph path and port from profile name, then launches the query server.
+# Usage: graphify-mcp-run <profile>
+set -euo pipefail
+
+PROFILE="${1:?Usage: $0 <profile>}"
+HOME="${HOME:-/home/yankuic}"
+
+declare -A GRAPH_DIRS PORTS
+GRAPH_DIRS[default]="$HOME/.hermes/graphify/personal"
+GRAPH_DIRS[researcher]="$HOME/.hermes/graphify/hermes-vault"
+GRAPH_DIRS[jseeker]="$HOME/.hermes/graphify/jseeker"
+PORTS[default]=8184
+PORTS[researcher]=8182
+PORTS[jseeker]=8186
+
+GRAPH="${GRAPH_DIRS[$PROFILE]:-}"
+PORT="${PORTS[$PROFILE]:-}"
+if [ -z "$GRAPH" ] || [ -z "$PORT" ]; then
+    echo "Unknown profile: $PROFILE" >&2
+    exit 1
+fi
+
+GRAPH_JSON="$GRAPH/graphify-out/graph.json"
+if [ ! -f "$GRAPH_JSON" ]; then
+    echo "WARNING: graph.json not found at $GRAPH_JSON — serving will fail until graph is built" >&2
+fi
+
+exec /home/yankuic/.local/share/uv/tools/graphifyy/bin/python \
+    -m graphify.serve "$GRAPH_JSON" \
+    --transport http --host 127.0.0.1 --port "$PORT" --path /mcp

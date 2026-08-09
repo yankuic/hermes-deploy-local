@@ -16,3 +16,7 @@ searxng-redis/
 *.bak
 *.log
 .DS_Store
+
+# Generated graph (rebuilt via graphify staging run)
+graphify-out/
+.hermes-graph-staging

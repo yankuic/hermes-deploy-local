@@ -1,0 +1,15 @@
+[Unit]
+Description=Graphify rebuild MCP server (%i) — vault knowledge graph rebuild
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+Environment=PATH=/home/yankuic/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=GRAPHIFY_MAX_OUTPUT_TOKENS=65536
+ExecStart=/home/yankuic/.local/share/uv/tools/graphifyy/bin/python /home/yankuic/Hermes/scripts/graphify-rebuild-mcp.py --profile %i --host 127.0.0.1 --path /mcp
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,14 @@
+[Unit]
+Description=Graphify MCP server (%i) — vault knowledge graph query
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+Environment=PATH=/home/yankuic/.local/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/home/yankuic/Hermes/scripts/graphify-mcp-run %i
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target
