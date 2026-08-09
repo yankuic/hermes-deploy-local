@@ -205,15 +205,11 @@ custom_providers:
   - name: unsloth
     base_url: http://<LLM_HOST>:8000/v1
     api_key: <LLM_API_KEY>
-    model: unsloth/Qwen3.6-27B-GGUF
+    model: unsloth/Qwen3.5-122B-A10B-MTP-GGUF
     models:
       unsloth/Qwen3.5-122B-A10B-MTP-GGUF:
         context_length: 262144
-      unsloth/Qwen3.6-27B-GGUF:
-        context_length: 262144
       unsloth/Qwen3.6-27B-MTP-GGUF:
-        context_length: 262144
-      unsloth/Qwen3.6-35B-A3B-GGUF:
         context_length: 262144
       bottlecapai/ThinkingCap-Qwen3.6-27B-GGUF:
         context_length: 262144
