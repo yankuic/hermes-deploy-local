@@ -23,8 +23,13 @@ run() {
 }
 
 run image_source_output_mounts.py "$@"
-run simplex_dm_send.py "$@"
+# simplex_dm_send.py retired 2026-08-09: upstream main now natively uses the
+# structured `/_send @<id> json [...]` form in adapter.py send() and
+# _standalone_send(), so the patch has no bare-form target left.
+# run simplex_dm_send.py "$@"
 run simplex_inline_image.py "$@"
 run apply-profile-isolation.py "$@"
+run desktop_slash_live_gateway.py "$@"
+run desktop_launcher_wrapper.py "$@"
 
 exit $STATUS
